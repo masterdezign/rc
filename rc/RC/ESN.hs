@@ -16,7 +16,9 @@ import           Numeric.LinearAlgebra
 import           System.Random ( StdGen
                                , split
                                )
-import           Data.Maybe ( fromMaybe )
+import           Data.Maybe ( fromMaybe
+                            , fromJust
+                            )
 import qualified Data.Vector.Storable as V
 import qualified Learning
 
@@ -116,45 +118,63 @@ learn
   -> Either String ESN
 learn esn forgetPts inp out = esn'
   where
-    state' = state esn inp (Just out) ?? (All, Drop forgetPts)
+    state' = scanNet esn inp (Just out) ?? (All, Drop forgetPts)
     teacher' = teacher (_par esn) out ?? (All, Drop forgetPts)
     esn' = case Learning.learn' state' teacher' of
       Nothing -> Left "Cannot create a readout matrix"
       w -> Right $ esn { _outputWeights = w }
 
--- | State Matrix that consists of two components:
+-- | Either state matrix or signal y(t): depending if target sequence @out@
+-- was provided or not.
+-- If provided, the state matrix consists of two components:
 -- 1. Input information
 -- 2. Internal state, i.e. the _nonlinear transformation_
 -- performed by a reservoir (dynamical system)
-state :: ESN
-      -> Matrix Double
-      -- ^ Input sequence
-      -> Maybe (Matrix Double)
-      -- ^ Target sequence (if training)
-      -> Matrix Double
-state ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
-          , _inputWeights = w0
-          , _reservoir = Reservoir { _activation = fnl, _weights = w1 }
-          , _feedbackWeights = w2
-          } inp out = fst st
+scanNet :: ESN
+        -> Matrix Double
+        -- ^ Input sequence
+        -> Maybe (Matrix Double)
+        -- ^ Target sequence (if training)
+        -> Matrix Double
+scanNet ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
+            , _inputWeights = w0
+            , _reservoir = Reservoir { _activation = fnl, _weights = w1 }
+            , _outputWeights = ow
+            , _feedbackWeights = w2
+            } inp out = st
   where
     inpScaled = inp * reshape 1 is
     inpWithOffset = inpScaled * reshape 1 iof
 
     internalUnits = rows w1
 
-    -- Empty state accumulator matrix
-    m0 = tr $ reshape internalUnits $ vector []
-
     -- Initial network state (zero)
     v0 = V.replicate internalUnits 0.0
 
     st = case out of
-      Nothing -> error "TODO TODO"
+      -- Training
       Just out' ->
-        foldr (\(vIn, feedb) (m, v) -> let v' = _netw v vIn feedb
-                                       in (m ||| reshape 1 v', v')
-              ) (m0, v0) $ zip (toColumns inpWithOffset) (toColumns out')
+        let -- Empty state accumulator matrix
+            m0 = tr $ reshape internalUnits $ vector []
+            r = foldr (\(vIn, forcing) (m, v) ->
+                          let v' = _netw v vIn forcing
+                          in (m ||| reshape 1 v', v')
+                      ) (m0, v0) $ zip (toColumns inpWithOffset) (toColumns out')
+        in fst r
+      -- Exploitation
+      Nothing ->
+        let readout = fromJust ow
+            outputUnits = rows readout
+            -- Empty y(t) signal accumulator
+            m0 = tr $ reshape outputUnits $ vector []
+            -- Initially, no feedback
+            f0 = reshape 1 $ V.replicate outputUnits 0.0
+            r = foldr (\vIn (m, (v, feedb)) ->
+                         let v' = _netw v vIn feedb
+                             y = readout #> v'
+                         in (m ||| reshape 1 y, (v', y))
+                      ) (m0, (v0, flatten f0)) $ toColumns inpWithOffset
+        in fst r
 
     -- Network equation
     -- x(n + 1) = fnl[W * x(n) + Win * u(n + 1) + Wfb * y(n)]
@@ -166,7 +186,7 @@ state ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
         -- Reservoir: transform the previous state
         s1 = w1 #> statePrev
 
-        -- Teacher forcing
+        -- Teacher forcing or self-feedback
         s2 = w2 #> feedb
 
         s = V.zipWith (+) (V.zipWith (+) s0 s1) s2
@@ -193,9 +213,8 @@ predict esn@ESN { _outputWeights = ow
                 } forgetPoints inpt =
   case ow of
     Nothing -> Left "Please train the ESN first"
-    Just readout -> let state' = state esn inpt Nothing
-                        state2 = state' ?? (All, Drop forgetPoints)
-                        state3 = readout <> state2
+    Just _ -> let y = scanNet esn inpt Nothing
+                  y2 = y ?? (All, Drop forgetPoints)
 
-                    -- Scale back to original
-                    in Right $ (state3 - reshape 1 to) <> inv (diag ts)
+              -- Scale back to original
+              in Right $ (y2 - reshape 1 to) <> inv (diag ts)
