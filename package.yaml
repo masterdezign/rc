@@ -11,8 +11,8 @@ extra-source-files:
 - ChangeLog.md
 
 # Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Games
+synopsis:            Reservoir Computing, fast RNNs
+category:            Machine Learning
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
@@ -21,19 +21,24 @@ description:         Please see the README on Github at <https://github.com/mast
 
 dependencies:
 - base >= 4.7 && < 5
+- hmatrix >= 0.18.0.0
+- Learning
+- random
+- vector
 
 library:
   source-dirs: rc
 
 executables:
-  rc-exe:
+  esn:
     main:                Main.hs
-    source-dirs:         app
+    source-dirs:         examples/ESN
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
+    - lens
     - rc
 
 tests:
