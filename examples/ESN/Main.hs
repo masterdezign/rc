@@ -47,6 +47,7 @@ main = do
   case RC.learn esn forgetPoints inpt outp of
     Left s -> error s
     Right esn' -> do
-        print $ _outputWeights esn'
-
-  putStrLn "Done"
+        -- print $ _outputWeights esn'
+        case RC.predict esn' forgetPoints inpt of
+          Left s -> error s
+          Right outp' -> mapM_ print $ toList (flatten outp')

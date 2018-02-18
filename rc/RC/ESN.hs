@@ -116,8 +116,8 @@ learn
   -> Either String ESN
 learn esn forgetPts inp out = esn'
   where
-    state' = (state esn inp out) ?? (All, Drop forgetPts)
-    teacher' = (RC.ESN.teacher (_par esn) out) ?? (All, Drop forgetPts)
+    state' = state esn inp (Just out) ?? (All, Drop forgetPts)
+    teacher' = teacher (_par esn) out ?? (All, Drop forgetPts)
     esn' = case Learning.learn' state' teacher' of
       Nothing -> Left "Cannot create a readout matrix"
       w -> Right $ esn { _outputWeights = w }
@@ -129,8 +129,8 @@ learn esn forgetPts inp out = esn'
 state :: ESN
       -> Matrix Double
       -- ^ Input sequence
-      -> Matrix Double
-      -- ^ Target sequence
+      -> Maybe (Matrix Double)
+      -- ^ Target sequence (if training)
       -> Matrix Double
 state ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
           , _inputWeights = w0
@@ -138,8 +138,8 @@ state ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
           , _feedbackWeights = w2
           } inp out = fst st
   where
-    inpScaled = inp * (reshape 1 is)
-    inpWithOffset = inpScaled * (reshape 1 iof)
+    inpScaled = inp * reshape 1 is
+    inpWithOffset = inpScaled * reshape 1 iof
 
     internalUnits = rows w1
 
@@ -149,9 +149,12 @@ state ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
     -- Initial network state (zero)
     v0 = V.replicate internalUnits 0.0
 
-    st = foldr (\(vIn, feedb) (m, v) -> let v' = _netw v vIn feedb
-                                        in (m ||| (reshape 1 v'), v')
-               ) (m0, v0) $ zip (toColumns inpWithOffset) (toColumns out)
+    st = case out of
+      Nothing -> error "TODO TODO"
+      Just out' ->
+        foldr (\(vIn, feedb) (m, v) -> let v' = _netw v vIn feedb
+                                       in (m ||| reshape 1 v', v')
+              ) (m0, v0) $ zip (toColumns inpWithOffset) (toColumns out')
 
     -- Network equation
     -- x(n + 1) = fnl[W * x(n) + Win * u(n + 1) + Wfb * y(n)]
@@ -180,3 +183,19 @@ teacher Par { _teacherScaling = ts
   where
     d = diag ts
     offset = reshape 1 to
+
+predict :: ESN
+        -> Int
+        -> Matrix Double
+        -> Either String (Matrix Double)
+predict esn@ESN { _outputWeights = ow
+                , _par = Par { _teacherScaling = ts, _teacherOffset = to }
+                } forgetPoints inpt =
+  case ow of
+    Nothing -> Left "Please train the ESN first"
+    Just readout -> let state' = state esn inpt Nothing
+                        state2 = state' ?? (All, Drop forgetPoints)
+                        state3 = readout <> state2
+
+                    -- Scale back to original
+                    in Right $ (state3 - reshape 1 to) <> inv (diag ts)
