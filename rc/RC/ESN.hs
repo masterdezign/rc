@@ -144,7 +144,7 @@ scanNet ESN { _par = Par { _inputScaling = is, _inputOffset = iof }
             } inp out = st
   where
     inpScaled = inp * reshape 1 is
-    inpWithOffset = inpScaled * reshape 1 iof
+    inpWithOffset = inpScaled + reshape 1 iof
 
     internalUnits = rows w1
 
