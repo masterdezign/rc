@@ -21,6 +21,7 @@ description:         Please see the README on Github at <https://github.com/mast
 
 dependencies:
 - base >= 4.7 && < 5
+- dde == 0.0.0
 - hmatrix >= 0.18.0.0
 - Learning
 - random
@@ -39,6 +40,12 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - lens
+    - rc
+
+  ntc:
+    main:                Main.hs
+    source-dirs:         examples/NTC
+    dependencies:
     - rc
 
 tests:

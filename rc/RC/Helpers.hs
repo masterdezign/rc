@@ -1,8 +1,37 @@
-module RC.Helpers where
+module RC.Helpers
+  ( addBiases
+  , randList
+  , randMatrix
+  , randSparse
+  , hsigmoid
+  ) where
 
 import           System.Random
 import           Data.List ( unfoldr )
 import qualified Numeric.LinearAlgebra as LA
+
+-- | Hard sigmoid
+hsigmoid :: (Fractional a, Ord a)
+         => (a, a, a)
+         -- ^ Vertical scaling, width, offset
+         -> a
+         -> a
+hsigmoid (β, width, offset) x = f
+  where
+    f | x < offset = 0.0
+      | x < width = β * (x - offset)
+      | otherwise = β * (width - offset)
+
+-- | Prepend a row of ones
+-- >>> addBiases $ (2><3) [20..26]
+-- (3><3)
+--  [  1.0,  1.0,  1.0
+--  , 20.0, 21.0, 22.0
+--  , 23.0, 24.0, 25.0 ]
+addBiases :: LA.Matrix Double -> LA.Matrix Double
+addBiases m = let no = LA.cols m
+                  m' = LA.konst 1.0 (1, no)
+              in m' LA.=== m
 
 -- | Random matrix with elements in the range of [minVal; maxVal]
 randMatrix
