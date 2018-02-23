@@ -30,21 +30,22 @@ main = do
       g = mkStdGen 1111
       ntc = RC.new g p (1, 1000, 1)
 
-
   -- 20 steps ahead prediction horizon
   let horizon = 20
 
   let train' = takePast horizon train  -- Past series
       trainTeacher = takeFuture horizon train  -- Predicted series
 
+  let forgetPts = 300  -- Washout
+
   -- Train
-  case RC.learn ntc 0 train' trainTeacher of
+  case RC.learn ntc forgetPts train' trainTeacher of
     Left s -> error s
     Right ntc' -> do
-      let target = takeFuture horizon validate
+      let target = (takeFuture horizon validate) ?? (All, Drop forgetPts)
 
       -- Predict
-      case RC.predict ntc' 0 (takePast horizon validate) of
+      case RC.predict ntc' forgetPts (takePast horizon validate) of
         Left s -> error s
         Right prediction -> do
           let tgt' = flatten target
