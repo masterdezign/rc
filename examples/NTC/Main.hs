@@ -14,6 +14,10 @@ takePast horizon xs = xs ?? (All, Take (len - horizon))
 takeFuture :: Int -> Matrix Double -> Matrix Double
 takeFuture horizon = (?? (All, Drop horizon))
 
+splitAt' :: Int -> Matrix Double -> (Matrix Double, Matrix Double)
+splitAt' i m = (m ?? (All, Take i), m ?? (All, Drop i))
+
+main :: IO ()
 main = do
   -- Load and transpose time series to predict
   dta <- tr <$> loadMatrix "examples/data/mg.txt"
@@ -21,11 +25,10 @@ main = do
   let splitRatio = 0.50  -- Train on 50% of data
       total = cols dta
       spl = round $ splitRatio * fromIntegral total
-      -- Split the data
-      train = dta ?? (All, Take spl)
-      validate = dta ?? (All, Drop spl)
+      -- Split the data into training and validation data sets
+      (train, validate) = splitAt' spl dta
 
-  -- Configure new NTC network
+  -- Configure a new NTC network
   let p = RC.par0 { RC._inputWeightsRange = (0.1, 0.3) }
       g = mkStdGen 1111
       ntc = RC.new g p (1, 1000, 1)
