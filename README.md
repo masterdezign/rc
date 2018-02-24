@@ -15,7 +15,7 @@ Use [Stack](http://haskellstack.org).
      $ git clone https://github.com/masterdezign/rc.git && cd rc
      $ stack build --install-ghc
 
-### [Example 1](https://github.com/masterdezign/rc/tree/master/examples/NTC). NTC
+### [Example 1](https://github.com/masterdezign/rc/tree/master/examples/NTC). NTC, time series forecasting
 
 
      $ stack exec ntc
