@@ -23,6 +23,7 @@ hsigmoid (β, width, offset) x = f
       | otherwise = β * (width - offset)
 
 -- | Prepend a row of ones
+--
 -- >>> addBiases $ (2><3) [20..26]
 -- (3><3)
 --  [  1.0,  1.0,  1.0
