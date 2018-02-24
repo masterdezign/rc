@@ -5,7 +5,7 @@ Facilitating RC research
 ## Features
 
 * [Nonlinear transient computing (NTC)](https://github.com/masterdezign/rc/tree/master/examples/NTC)
-* Echo State Networks (ESNs)
+* Echo State Networks (ESNs) (upcoming)
 
 
 ## Getting Started
@@ -22,7 +22,7 @@ Use [Stack](http://haskellstack.org).
 
      Error: 3.1103181863915367e-3
 
-Below is visualized prediction result:
+Visualize the prediction results:
 
      $ python3 examples/NTC/plot.py
 

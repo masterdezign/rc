@@ -31,17 +31,6 @@ library:
   source-dirs: rc
 
 executables:
-  esn:
-    main:                Main.hs
-    source-dirs:         examples/ESN
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - lens
-    - rc
-
   ntc:
     main:                Main.hs
     source-dirs:         examples/NTC
