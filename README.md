@@ -24,6 +24,8 @@ Use [Stack](http://haskellstack.org).
 
 Below is visualized prediction result:
 
+     $ python3 examples/NTC/plot.py
+
 ![Figure](https://raw.githubusercontent.com/masterdezign/rc/master/examples/NTC/mg-prediction.png)
 
 Great!
