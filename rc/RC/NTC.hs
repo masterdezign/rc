@@ -114,7 +114,9 @@ forwardPass NTC { _par = Par { _preprocess = prep, _postprocess = post }
   let pipeline = post. res. (iw <>). prep
   in pipeline sample
 
--- | Offline NTC training
+-- TODO: introduce an explicit `learnClassifier` function
+
+-- | NTC training: learn the readout weights offline
 learn
   :: NTC
   -> Int
@@ -132,10 +134,15 @@ learn ntc forgetPts inp out = ntc'
       Nothing -> Left "Cannot create a readout matrix"
       w -> Right $ ntc { _outputWeights = w }
 
-predict :: NTC
-        -> Int
+-- | Run prediction using a "clean" (uninitialized) reservoir and then
+-- forget the reservoir's state.
+-- This can be used for forecasting and classification tasks.
+predict :: NTC  -- ^ Trained network
+        -> Int  -- ^ Washout (forget) points
         -> Matrix Double
+        -- ^ Input matrix where measurements are columns and features are rows
         -> Either String (Matrix Double)
+        -- ^ Either error string or predicted output
 predict ntc@NTC { _outputWeights = ow
                 } forgetPts inp =
   case ow of
