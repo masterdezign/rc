@@ -27,9 +27,28 @@ import qualified Numeric.DDE.Model as DDEModel
 
 import qualified RC.Helpers as H
 
--- | DDE reservoir abstraction
+-- | Reservoir abstraction.
+--
+-- Reservoir (a recurrent neural network) is an essential
+-- component in the NTC framework.
+--
+-- In this project, we exploit an established analogy between
+-- spatially extended and delay systems ^1-3. That makes possible
+-- to employ DDEs as a reservoir substrate. The choice of substrate
+-- does not affect the `Reservoir` definition below.
+--
+-- ^1 Arecchi, F. T., et al. “Two-Dimensional Representation of
+--    a Delayed Dynamical System.” Physical Review A, vol. 45, no. 7,
+--    Jan. 1992, doi:10.1103/physreva.45.r4225.
+-- ^2 Appeltant, L., et al. “Information Processing Using a Single
+--    Dynamical Node as Complex System.” Nature Communications, vol. 2,
+--    2011, p. 468., doi:10.1038/ncomms1476.
+-- ^3 Virtual Chimera States for Delayed-Feedback Systems - Laurent Larger,
+--    Bogdan Penkovsky, Yuri Maistrenko. Physical Review Letters - 08 / 2013
+--
 newtype Reservoir = Reservoir { _transform :: Matrix Double -> Matrix Double }
 
+-- | Customizable NTC parameters
 data NTCParameters = Par
   { _preprocess :: Matrix Double -> Matrix Double
     -- ^ Modify data before masking (e.g. compression)
@@ -40,6 +59,7 @@ data NTCParameters = Par
   , _reservoirModel :: DDEModel.Par
   }
 
+-- | NTC network structure
 data NTC = NTC
   { _inputWeights :: Matrix Double
   , _reservoir :: Reservoir
@@ -48,6 +68,7 @@ data NTC = NTC
   , _par :: NTCParameters
   }
 
+-- | Creates an untrained NTC network
 new
   :: StdGen
   -> NTCParameters
@@ -82,8 +103,11 @@ par0 = Par
             , DDEModel._theta = recip 0.34375
             }
 
+-- | Substrate-specific low-level reservoir implementation
 genReservoir :: DDEModel.Par -> Reservoir
-genReservoir par = Reservoir _r
+genReservoir par@DDEModel.RC {
+    DDEModel._filt = DDEModel.BandpassFiltering { DDEModel._tau = tau }
+  } = Reservoir _r
   where
     _r sample = unflatten response
       where
@@ -101,12 +125,18 @@ genReservoir par = Reservoir _r
         -- Duplicate the last element (DDE.integHeun2_2D consumes one extra input)
         trace = trace1 V.++ V.singleton (V.last trace1)
 
-        tau = DDEModel._tau $ DDEModel._filt par
+        -- Empirically chosen integration time step:
+        -- twice faster than the system response time tau
         hStep = tau / 2
 
         !(_, !response) = DDE.integHeun2_2D delaySamples hStep (DDEModel.rhs par) (DDE.Input trace)
 
-forwardPass :: NTC -> Matrix Double -> Matrix Double
+genReservoir _ = error "Unsupported DDE model"
+
+-- | Nonlinear transformation performed by an NTC network
+forwardPass :: NTC  -- ^ NTC network
+            -> Matrix Double  -- ^ Input information
+            -> Matrix Double
 forwardPass NTC { _par = Par { _preprocess = prep, _postprocess = post }
                 , _inputWeights = iw
                 , _reservoir = Reservoir res
@@ -136,7 +166,7 @@ learn ntc forgetPts inp out = ntc'
 
 -- | Run prediction using a "clean" (uninitialized) reservoir and then
 -- forget the reservoir's state.
--- This can be used for forecasting and classification tasks.
+-- This can be used for both forecasting and classification tasks.
 predict :: NTC  -- ^ Trained network
         -> Int  -- ^ Washout (forget) points
         -> Matrix Double
