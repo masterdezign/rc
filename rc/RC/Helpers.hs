@@ -21,6 +21,8 @@ hsigmoid (β, width, offset) x = f
     f | x < offset = 0.0
       | x < width = β * (x - offset)
       | otherwise = β * (width - offset)
+{-# SPECIALISE hsigmoid :: (Double, Double, Double) -> Double -> Double #-}
+{-# SPECIALISE hsigmoid :: (Float, Float, Float) -> Float -> Float #-}
 
 -- | Prepend a row of ones
 --
