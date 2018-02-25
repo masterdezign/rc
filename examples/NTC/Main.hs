@@ -5,16 +5,23 @@ import           Learning ( nrmse )
 import           RC.NTC as RC
 
 -- Get training data
-takePast :: Int -> Matrix Double -> Matrix Double
+takePast :: Element a => Int -> Matrix a -> Matrix a
 takePast horizon xs = xs ?? (All, Take (len - horizon))
   where
     len = cols xs
 
--- Get teacher data
-takeFuture :: Int -> Matrix Double -> Matrix Double
+-- Get target data
+takeFuture :: Element a => Int -> Matrix a -> Matrix a
 takeFuture horizon = (?? (All, Drop horizon))
 
-splitAt' :: Int -> Matrix Double -> (Matrix Double, Matrix Double)
+-- Manipulate the data matrix: horizontal split
+splitAtRatio :: Element a => Double -> Matrix a -> (Matrix a, Matrix a)
+splitAtRatio ratio m = splitAt' spl m
+  where
+    total = cols m
+    spl = round $ ratio * fromIntegral total
+
+splitAt' :: Element a => Int -> Matrix a -> (Matrix a, Matrix a)
 splitAt' i m = (m ?? (All, Take i), m ?? (All, Drop i))
 
 main :: IO ()
@@ -22,11 +29,8 @@ main = do
   -- Load and transpose time series to predict
   dta <- tr <$> loadMatrix "examples/data/mg.txt"
 
-  let splitRatio = 0.50  -- Train on 50% of data
-      total = cols dta
-      spl = round $ splitRatio * fromIntegral total
-      -- Split the data into training and validation data sets
-      (train, validate) = splitAt' spl dta
+  -- Train on 50% of data
+  let (train, validate) = splitAtRatio 0.50 dta
 
   -- Configure a new NTC network
   let p = RC.par0 { RC._inputWeightsRange = (0.1, 0.3) }
