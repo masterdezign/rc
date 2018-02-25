@@ -1,3 +1,4 @@
+-- |
 -- = Nonlinear transient computing
 --
 -- This module was developed as a part of author's PhD project:
