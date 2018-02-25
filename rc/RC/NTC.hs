@@ -69,7 +69,7 @@ data NTC = NTC
   , _par :: NTCParameters
   }
 
--- | Creates an untrained NTC network
+-- | An untrained NTC network
 new
   :: StdGen
   -> NTCParameters
