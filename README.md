@@ -33,6 +33,9 @@ Great!
 
 ## Further reading
 
+* Appeltant, L., et al. “Information Processing Using a Single
+  Dynamical Node as Complex System.” Nature Communications, vol. 2,
+  2011, p. 468., doi:10.1038/ncomms1476.
 * Larger, L., et al. “Photonic Information Processing beyond Turing: an Optoelectronic Implementation of Reservoir Computing.” Optics Express, vol. 20, no. 3, 2012, p. 3241., doi:10.1364/oe.20.003241.
 * Rabinovič, Mihail Izrailevič, et al. Principles of Brain Dynamics: Global State Interactions. The MIT Press, 2012.
 * Jaeger, H. “Harnessing Nonlinearity: Predicting Chaotic Systems and Saving Energy in Wireless Communication.” Science, vol. 304, no. 5667, Feb. 2004, pp. 78–80., doi:10.1126/science.1091277.
