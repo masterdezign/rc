@@ -37,12 +37,11 @@ resolver: lts-10.5
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - .
-- location: https://github.com/masterdezign/Learning/archive/master.zip
-  extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- dde-0.0.0
+- dde-0.0.1
+- Learning-0.1.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

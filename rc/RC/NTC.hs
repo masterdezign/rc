@@ -10,6 +10,7 @@
 module RC.NTC
   ( new
   , learn
+  , learnClassifier
   , predict
   , par0
   , NTCParameters (..)
@@ -21,7 +22,10 @@ import           Numeric.LinearAlgebra
 import           System.Random ( StdGen
                                , split
                                )
+import qualified Data.List as List
 import qualified Data.Vector.Storable as V
+import qualified Data.Vector.Storable.Mutable as VM
+import           System.IO.Unsafe ( unsafePerformIO )
 import qualified Learning
 import qualified Numeric.DDE as DDE
 import qualified Numeric.DDE.Model as DDEModel
@@ -67,6 +71,7 @@ data NTC = NTC
   , _outputWeights :: Maybe (Matrix Double)
   -- ^ Trainable part of NTC
   , _par :: NTCParameters
+  -- ^ Number of hidden nodes
   }
 
 -- | An untrained NTC network
@@ -110,11 +115,8 @@ genReservoir par@DDEModel.RC {
     DDEModel._filt = DDEModel.BandpassFiltering { DDEModel._tau = tau }
   } = Reservoir _r
   where
-    _r sample = unflatten response
+    _r sample = unflatten' nodes response
       where
-        flatten' = flatten. tr
-        unflatten = tr. reshape nodes
-
         oversampling = 1 :: Int  -- No oversampling
         detuning = 1.0 :: Double  -- Delay detuning factor, 1 = no detuning
         nodes = rows sample
@@ -141,11 +143,9 @@ forwardPass :: NTC  -- ^ NTC network
 forwardPass NTC { _par = Par { _preprocess = prep, _postprocess = post }
                 , _inputWeights = iw
                 , _reservoir = Reservoir res
-                } sample =
+                } !sample =
   let pipeline = post. res. (iw <>). prep
   in pipeline sample
-
--- TODO: introduce an explicit `learnClassifier` function
 
 -- | NTC training: learn the readout weights offline
 learn
@@ -164,6 +164,101 @@ learn ntc forgetPts inp out = ntc'
     ntc' = case Learning.learn' state' teacher' of
       Nothing -> Left "Cannot create a readout matrix"
       w -> Right $ ntc { _outputWeights = w }
+
+_concatForwardPass :: NTC
+                   -> Int
+                   -- ^ Number of samples in the list (for
+                   -- memory allocation)
+                   -> [Matrix Double]
+                   -- ^ List of samples
+                   -> Matrix Double
+_concatForwardPass ntc m (state0_:samples') = unsafePerformIO $ do
+      -- Detect the postprocessing output dimension `nodes`.
+      -- Alternatively, use Static shapes from hmatrix.
+      let state0 = forwardPass ntc state0_
+          nodes = rows state0
+          state0' = flatten' state0
+
+      -- Allocate memory for a mutable vector
+      v <- VM.new (nodes * m)
+
+      -- Copy the first computed state0'
+      copy state0' v 0 0 nodes
+
+      let foldA _ [] = return ()
+          foldA f ((y, i):ys) = do
+            let v0 = f y
+            copy v0 v 0 (i * nodes) ((i + 1) * nodes)
+            foldA f ys
+
+      -- NB: Does compiler know (flatten'. unflatten') == id?
+      -- If not, consider refactoring genReservoir and forwardPass
+      foldA (flatten'. forwardPass ntc) $ zip samples' [1..m - 1]
+
+      processed' <- V.unsafeFreeze v
+      let processed = unflatten' nodes processed'
+      return processed
+  where
+    copy !v0 !v !i0 !i !k
+      | i < k = do
+        VM.unsafeWrite v i (v0 V.! i0)
+        copy v0 v (i0 + 1) (i + 1) k
+      | otherwise = return ()
+
+flatten' :: Matrix Double -> Vector Double
+flatten' = flatten. tr
+
+unflatten' :: Int -> Vector Double -> Matrix Double
+unflatten' nodes = tr. reshape nodes
+
+-- | NTC training specific to classification task.
+-- The readout weights are learned offline.
+--
+-- Alternatively, one could use `learn` function. However,
+-- to make sure the training samples do not mix in the reservoir RNN,
+-- a significant padding of zeros would be needed. Although that
+-- way directly corresponds to a physical experiment, that would be not
+-- memory-efficient on a computer.
+learnClassifier
+  :: NTC
+  -- ^ NTC network
+  -> [Int]
+  -- ^ Target labels
+  -> Int
+  -- ^ Number of inputs (for memory allocation)
+  -> [Matrix Double]
+  -- ^ Training inputs
+  -> Either String (Learning.Classifier Int)
+learnClassifier ntc labels m samples =
+  case Learning.learn' state teacher' of
+    Nothing -> Left "Cannot create a readout matrix"
+    Just w -> let clf = Learning.winnerTakesAll w klasses. forwardPass ntc
+           in Right (Learning.Classifier clf)
+  where
+    klasses = fromList. List.sort. List.nub $ labels
+    klassesNo = V.length klasses
+    teacher' = concatHor. map (flip (Learning.teacher klassesNo) 1) $ labels
+
+    -- Alternatively, a streaming interface might be a solution
+    -- https://hackage.haskell.org/package/pipes-4.3.7/docs/Pipes-Tutorial.html
+    state = _concatForwardPass ntc m samples
+
+-- | Horizontal matrix concatenation, alternative to fromBlocks
+concatHor :: Element a => [Matrix a] -> Matrix a
+concatHor ms@(m:_) = foldr (|||) (zeroCols (rows m)) ms
+-- concatHor = concatMapHor id
+{-# SPECIALIZE concatHor :: [Matrix Double] -> Matrix Double #-}
+
+concatMapHor
+  :: Element b =>
+     (Matrix a -> Matrix b) -> [Matrix a] -> Matrix b
+concatMapHor f ms@(m:_) = foldr (\a b -> (f a) ||| b) (zeroCols (rows m)) ms
+{-# SPECIALIZE concatMapHor :: (Matrix Double -> Matrix Double) -> [Matrix Double] -> Matrix Double #-}
+
+-- | Matrix with zero elements
+zeroCols :: V.Storable a => Int -> Matrix a
+zeroCols rows' = (rows'><0) []
+{-# SPECIALIZE zeroCols :: Int -> Matrix Double #-}
 
 -- | Run prediction using a "clean" (uninitialized) reservoir and then
 -- forget the reservoir's state.

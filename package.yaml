@@ -21,9 +21,9 @@ description:         Please see the README on Github at <https://github.com/mast
 
 dependencies:
 - base >= 4.7 && < 5
-- dde == 0.0.0
+- dde
 - hmatrix >= 0.18.0.0
-- Learning
+- Learning >= 0.1.0
 - random
 - vector
 
