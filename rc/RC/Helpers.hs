@@ -1,5 +1,7 @@
 module RC.Helpers
   ( addBiases
+  , flatten'
+  , unflatten'
   , randList
   , randMatrix
   , randSparse
@@ -8,7 +10,7 @@ module RC.Helpers
 
 import           System.Random
 import           Data.List ( unfoldr )
-import qualified Numeric.LinearAlgebra as LA
+import           Numeric.LinearAlgebra as LA
 
 -- | Hard sigmoid
 hsigmoid :: (Fractional a, Ord a)
@@ -66,3 +68,11 @@ randList :: (Random a, Floating a) => Int -> StdGen -> [a]
 randList n = take n. unfoldr (Just. random)
 {-# SPECIALISE randList :: Int -> StdGen -> [Float] #-}
 {-# SPECIALISE randList :: Int -> StdGen -> [Double] #-}
+
+-- | Flatten by columns
+flatten' :: Matrix Double -> Vector Double
+flatten' = flatten. tr
+
+-- | Reshape using columns instead of rows
+unflatten' :: Int -> Vector Double -> Matrix Double
+unflatten' nodes = tr. reshape nodes

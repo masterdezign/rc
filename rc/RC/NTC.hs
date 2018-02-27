@@ -27,31 +27,10 @@ import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Storable.Mutable as VM
 import           System.IO.Unsafe ( unsafePerformIO )
 import qualified Learning
-import qualified Numeric.DDE as DDE
 import qualified Numeric.DDE.Model as DDEModel
 
+import           RC.NTC.Reservoir
 import qualified RC.Helpers as H
-
--- | Reservoir abstraction.
---
--- Reservoir (a recurrent neural network) is an essential
--- component in the NTC framework.
---
--- In this project, we exploit an established analogy between
--- spatially extended and delay systems ^1-3. That makes possible
--- to employ DDEs as a reservoir substrate. The choice of substrate
--- does not affect the `Reservoir` definition below.
---
--- ^1 Arecchi, F. T., et al. “Two-Dimensional Representation of
---    a Delayed Dynamical System.” Physical Review A, vol. 45, no. 7,
---    Jan. 1992, doi:10.1103/physreva.45.r4225.
--- ^2 Appeltant, L., et al. “Information Processing Using a Single
---    Dynamical Node as Complex System.” Nature Communications, vol. 2,
---    2011, p. 468., doi:10.1038/ncomms1476.
--- ^3 Virtual Chimera States for Delayed-Feedback Systems - Laurent Larger,
---    Bogdan Penkovsky, Yuri Maistrenko. Physical Review Letters - 08 / 2013
---
-newtype Reservoir = Reservoir { _transform :: Matrix Double -> Matrix Double }
 
 -- | Customizable NTC parameters
 data NTCParameters = Par
@@ -109,33 +88,6 @@ par0 = Par
             , DDEModel._theta = recip 0.34375
             }
 
--- | Substrate-specific low-level reservoir implementation
-genReservoir :: DDEModel.Par -> Reservoir
-genReservoir par@DDEModel.RC {
-    DDEModel._filt = DDEModel.BandpassFiltering { DDEModel._tau = tau }
-  } = Reservoir _r
-  where
-    _r sample = unflatten' nodes response
-      where
-        oversampling = 1 :: Int  -- No oversampling
-        detuning = 1.0 :: Double  -- Delay detuning factor, 1 = no detuning
-        nodes = rows sample
-        delaySamples = round $ detuning * fromIntegral (oversampling * nodes)
-
-        -- Matrix to timetrace
-        trace1 = flatten' sample
-
-        -- Duplicate the last element (DDE.integHeun2_2D consumes one extra input)
-        trace = trace1 V.++ V.singleton (V.last trace1)
-
-        -- Empirically chosen integration time step:
-        -- twice faster than the system response time tau
-        hStep = tau / 2
-
-        !(_, !response) = DDE.integHeun2_2D delaySamples hStep (DDEModel.rhs par) (DDE.Input trace)
-
-genReservoir _ = error "Unsupported DDE model"
-
 -- | Nonlinear transformation performed by an NTC network
 forwardPass :: NTC  -- ^ NTC network
             -> Matrix Double  -- ^ Input information
@@ -159,7 +111,7 @@ learn
   -> Either String NTC
 learn ntc forgetPts inp out = ntc'
   where
-    state' = (forwardPass ntc inp) ?? (All, Drop forgetPts)
+    state' = forwardPass ntc inp ?? (All, Drop forgetPts)
     teacher' = out ?? (All, Drop forgetPts)
     ntc' = case Learning.learn' state' teacher' of
       Nothing -> Left "Cannot create a readout matrix"
@@ -177,7 +129,7 @@ _concatForwardPass ntc m (state0_:samples') = unsafePerformIO $ do
       -- Alternatively, use Static shapes from hmatrix.
       let state0 = forwardPass ntc state0_
           nodes = rows state0
-          state0' = flatten' state0
+          state0' = H.flatten' state0
 
       -- Allocate memory for a mutable vector
       v <- VM.new (nodes * m)
@@ -191,12 +143,12 @@ _concatForwardPass ntc m (state0_:samples') = unsafePerformIO $ do
             copy v0 v 0 (i * nodes) ((i + 1) * nodes)
             foldA f ys
 
-      -- NB: Does compiler know (flatten'. unflatten') == id?
+      -- NB: Does compiler know (H.flatten'. H.unflatten') == id?
       -- If not, consider refactoring genReservoir and forwardPass
-      foldA (flatten'. forwardPass ntc) $ zip samples' [1..m - 1]
+      foldA (H.flatten'. forwardPass ntc) $ zip samples' [1..m - 1]
 
       processed' <- V.unsafeFreeze v
-      let processed = unflatten' nodes processed'
+      let processed = H.unflatten' nodes processed'
       return processed
   where
     copy !v0 !v !i0 !i !k
@@ -204,12 +156,6 @@ _concatForwardPass ntc m (state0_:samples') = unsafePerformIO $ do
         VM.unsafeWrite v i (v0 V.! i0)
         copy v0 v (i0 + 1) (i + 1) k
       | otherwise = return ()
-
-flatten' :: Matrix Double -> Vector Double
-flatten' = flatten. tr
-
-unflatten' :: Int -> Vector Double -> Matrix Double
-unflatten' nodes = tr. reshape nodes
 
 -- | NTC training specific to classification task.
 -- The readout weights are learned offline.
@@ -252,7 +198,7 @@ concatHor ms@(m:_) = foldr (|||) (zeroCols (rows m)) ms
 concatMapHor
   :: Element b =>
      (Matrix a -> Matrix b) -> [Matrix a] -> Matrix b
-concatMapHor f ms@(m:_) = foldr (\a b -> (f a) ||| b) (zeroCols (rows m)) ms
+concatMapHor f ms@(m:_) = foldr (\a b -> f a ||| b) (zeroCols (rows m)) ms
 {-# SPECIALIZE concatMapHor :: (Matrix Double -> Matrix Double) -> [Matrix Double] -> Matrix Double #-}
 
 -- | Matrix with zero elements
