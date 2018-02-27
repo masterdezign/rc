@@ -14,8 +14,6 @@ module RC.NTC
   , predict
   , par0
   , NTCParameters (..)
-  , DDEModel.Par (..)
-  , DDEModel.BandpassFiltering (..)
   ) where
 
 import           Numeric.LinearAlgebra
@@ -29,7 +27,7 @@ import           System.IO.Unsafe ( unsafePerformIO )
 import qualified Learning
 import qualified Numeric.DDE.Model as DDEModel
 
-import           RC.NTC.Reservoir
+import qualified RC.NTC.Reservoir as Reservoir
 import qualified RC.Helpers as H
 
 -- | Customizable NTC parameters
@@ -40,13 +38,13 @@ data NTCParameters = Par
   , _inputWeightsGenerator :: StdGen -> (Int, Int) -> (Double, Double) -> Matrix Double
   , _postprocess :: Matrix Double -> Matrix Double
   -- ^ Modify data before training or prediction (e.g. add biases)
-  , _reservoirModel :: DDEModel.Par
+  , _reservoirModel :: Reservoir.Reservoir
   }
 
 -- | NTC network structure
 data NTC = NTC
   { _inputWeights :: Matrix Double
-  , _reservoir :: Reservoir
+  , _reservoir :: Reservoir.Reservoir
   , _outputWeights :: Maybe (Matrix Double)
   -- ^ Trainable part of NTC
   , _par :: NTCParameters
@@ -64,7 +62,7 @@ new g par (ind, nodes, out) =
   let iwgen = _inputWeightsGenerator par
       iw = iwgen g (nodes, ind) (_inputWeightsRange par)
       ntc = NTC { _inputWeights = iw
-                , _reservoir = genReservoir (_reservoirModel par)
+                , _reservoir = _reservoirModel par
                 , _outputWeights = Nothing
                 , _par = par
                 }
@@ -77,10 +75,7 @@ par0 = Par
   , _inputWeightsGenerator = H.randMatrix
   , _postprocess = H.addBiases  -- Usually `id` will work
   , _inputWeightsRange = undefined  -- To be manually set, e.g. (-1, 1)
-  , _reservoirModel = DDEModel.RC { DDEModel._filt = filt'
-                                  , DDEModel._rho = 3.25
-                                  , DDEModel._fnl = H.hsigmoid (1.09375, 1.5, 0.0)
-                                  }
+  , _reservoirModel = Reservoir.genReservoir p
   }
   where
     filt' = DDEModel.BandpassFiltering {
@@ -88,13 +83,18 @@ par0 = Par
             , DDEModel._theta = recip 0.34375
             }
 
+    p = DDEModel.RC { DDEModel._filt = filt'
+                    , DDEModel._rho = 3.25
+                    , DDEModel._fnl = H.hsigmoid (1.09375, 1.5, 0.0)
+                    }
+
 -- | Nonlinear transformation performed by an NTC network
 forwardPass :: NTC  -- ^ NTC network
             -> Matrix Double  -- ^ Input information
             -> Matrix Double
 forwardPass NTC { _par = Par { _preprocess = prep, _postprocess = post }
                 , _inputWeights = iw
-                , _reservoir = Reservoir res
+                , _reservoir = Reservoir.Reservoir res
                 } !sample =
   let pipeline = post. res. (iw <>). prep
   in pipeline sample
