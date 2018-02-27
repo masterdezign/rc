@@ -27,29 +27,9 @@ import           System.IO.Unsafe ( unsafePerformIO )
 import qualified Learning
 import qualified Numeric.DDE.Model as DDEModel
 
+import           RC.NTC.Types
 import qualified RC.NTC.Reservoir as Reservoir
 import qualified RC.Helpers as H
-
--- | Customizable NTC parameters
-data NTCParameters = Par
-  { _preprocess :: Matrix Double -> Matrix Double
-    -- ^ Modify data before masking (e.g. compression)
-  , _inputWeightsRange :: (Double, Double)  -- ^ Input weights (mask) range
-  , _inputWeightsGenerator :: StdGen -> (Int, Int) -> (Double, Double) -> Matrix Double
-  , _postprocess :: Matrix Double -> Matrix Double
-  -- ^ Modify data before training or prediction (e.g. add biases)
-  , _reservoirModel :: Reservoir.Reservoir
-  }
-
--- | NTC network structure
-data NTC = NTC
-  { _inputWeights :: Matrix Double
-  , _reservoir :: Reservoir.Reservoir
-  , _outputWeights :: Maybe (Matrix Double)
-  -- ^ Trainable part of NTC
-  , _par :: NTCParameters
-  -- ^ Number of hidden nodes
-  }
 
 -- | An untrained NTC network
 new
@@ -94,7 +74,7 @@ forwardPass :: NTC  -- ^ NTC network
             -> Matrix Double
 forwardPass NTC { _par = Par { _preprocess = prep, _postprocess = post }
                 , _inputWeights = iw
-                , _reservoir = Reservoir.Reservoir res
+                , _reservoir = Reservoir res
                 } !sample =
   let pipeline = post. res. (iw <>). prep
   in pipeline sample
