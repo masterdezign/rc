@@ -31,5 +31,4 @@ data NTC = NTC
   , _outputWeights :: Maybe (Matrix Double)
   -- ^ Trainable part of NTC
   , _par :: NTCParameters
-  -- ^ Number of hidden nodes
   }
