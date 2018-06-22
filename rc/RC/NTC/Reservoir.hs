@@ -22,6 +22,7 @@ module RC.NTC.Reservoir
 
 import           Numeric.LinearAlgebra
 import qualified Data.Vector.Storable as V
+import qualified Linear.V2 as V2
 import qualified Numeric.DDE as DDE
 import qualified Numeric.DDE.Model as DDEModel
 
@@ -30,12 +31,12 @@ import qualified RC.Helpers as H
 
 
 -- | Substrate-specific low-level reservoir implementation
-genReservoir :: DDEModel.Par -> Reservoir
+genReservoir :: DDEModel.RC -> Reservoir
 genReservoir par@DDEModel.RC {
     DDEModel._filt = DDEModel.BandpassFiltering { DDEModel._tau = tau }
   } = Reservoir _r
   where
-    _r sample = H.unflatten' nodes response
+    _r sample = H.unflatten' nodes responseX
       where
         oversampling = 1 :: Int  -- No oversampling
         detuning = 1.0 :: Double  -- Delay detuning factor, 1 = no detuning
@@ -52,7 +53,6 @@ genReservoir par@DDEModel.RC {
         -- twice faster than the system response time tau
         hStep = tau / 2
 
-        !(_, !response) = DDE.integHeun2_2D delaySamples hStep (DDEModel.rhs par) (DDE.Input trace)
-
-genReservoir _ = error "Unsupported DDE model"
+        (_, response) = DDE.integHeun2_2D delaySamples hStep (DDEModel.bandpassRhs par) (DDE.Input trace)
+        responseX = V.map (\(V2.V2 x _) -> x) response
 
