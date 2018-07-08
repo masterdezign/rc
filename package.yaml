@@ -1,5 +1,5 @@
 name:                rc
-version:             0.2.0.0
+version:             0.3.0.0
 github:              "masterdezign/rc"
 license:             BSD3
 author:              "Bogdan Penkovsky"
@@ -21,7 +21,7 @@ description:         Please see the README on Github at <https://github.com/mast
 
 dependencies:
 - base >= 4.7 && < 5
-- dde >= 0.2.0
+- dde >= 0.3.0
 - hmatrix >= 0.18.0.0
 - Learning >= 0.1.0
 - linear
