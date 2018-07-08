@@ -37,13 +37,16 @@ resolver: lts-10.6
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - .
-# Dependency packages to be pulled from upstream that are not in the resolver
-# (e.g., acme-missiles-0.3)
+# Dependency packages to be pulled from upstream that are not in the resolver.
+# Note that pragmatic-show-0.1.2.0 doesn't build on Mac OS X
+# (pragmatic-show-0.1.2.0/Text/Show/Pragmatic.hs:110:29: error:
+# Module ‘System.Posix.Types’ does not export ‘CTimer’).
+# Therefore, using older version free-vector-spaces-0.1.4.0
+# that does not depend on pragmatic-show.
 extra-deps:
-- dde-0.2.0
-- free-vector-spaces-0.1.5.0
+- dde-0.3.0
+- free-vector-spaces-0.1.4.0
 - Learning-0.1.0
-- pragmatic-show-0.1.2.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

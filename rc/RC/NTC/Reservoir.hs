@@ -53,6 +53,6 @@ genReservoir par@DDEModel.RC {
         -- twice faster than the system response time tau
         hStep = tau / 2
 
-        (_, response) = DDE.integHeun2_2D delaySamples hStep (DDEModel.bandpassRhs par) (DDE.Input trace)
+        (_, response) = DDE.integHeun2_2D [delaySamples] hStep (DDEModel.bandpassRhs par) (DDE.Input trace)
         responseX = V.map (\(V2.V2 x _) -> x) response
 
