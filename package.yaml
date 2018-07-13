@@ -22,7 +22,7 @@ description:         Please see the README on Github at <https://github.com/mast
 dependencies:
 - base >= 4.7 && < 5
 - dde >= 0.3.0
-- hmatrix >= 0.18.0.0
+- hmatrix >= 0.18.1.0
 - Learning >= 0.1.0
 - linear
 - random
